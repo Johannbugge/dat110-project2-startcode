@@ -53,33 +53,33 @@ public class Dispatcher extends Stopable {
 		// invoke the appropriate handler method
 		switch (type) {
 
-		case DISCONNECT:
-			onDisconnect((DisconnectMsg) msg);
-			break;
+			case DISCONNECT:
+				onDisconnect((DisconnectMsg) msg);
+				break;
 
-		case CREATETOPIC:
-			onCreateTopic((CreateTopicMsg) msg);
-			break;
+			case CREATETOPIC:
+				onCreateTopic((CreateTopicMsg) msg);
+				break;
 
-		case DELETETOPIC:
-			onDeleteTopic((DeleteTopicMsg) msg);
-			break;
+			case DELETETOPIC:
+				onDeleteTopic((DeleteTopicMsg) msg);
+				break;
 
-		case SUBSCRIBE:
-			onSubscribe((SubscribeMsg) msg);
-			break;
+			case SUBSCRIBE:
+				onSubscribe((SubscribeMsg) msg);
+				break;
 
-		case UNSUBSCRIBE:
-			onUnsubscribe((UnsubscribeMsg) msg);
-			break;
+			case UNSUBSCRIBE:
+				onUnsubscribe((UnsubscribeMsg) msg);
+				break;
 
-		case PUBLISH:
-			onPublish((PublishMsg) msg);
-			break;
+			case PUBLISH:
+				onPublish((PublishMsg) msg);
+				break;
 
-		default:
-			Logger.log("broker dispatch - unhandled message type");
-			break;
+			default:
+				Logger.log("broker dispatch - unhandled message type");
+				break;
 
 		}
 	}
@@ -93,6 +93,16 @@ public class Dispatcher extends Stopable {
 
 		storage.addClientSession(user, connection);
 
+		// Sjekke her om det er noen meldinger som brukeren har gått glipp av (Task E)
+
+		if (storage.bufferedMessages.containsKey(user)) {
+			ClientSession session = storage.getSession(user);
+
+			for (Message m : storage.bufferedMessages.get(user)) {
+				session.send(m);
+			}
+			storage.bufferedMessages.remove(user);
+		}
 	}
 
 	// called by dispatch upon receiving a disconnect message
@@ -113,7 +123,7 @@ public class Dispatcher extends Stopable {
 		// TODO: create the topic in the broker storage
 		// the topic is contained in the create topic message
 
-		throw new UnsupportedOperationException(TODO.method());
+		storage.createTopic(msg.getTopic());
 
 	}
 
@@ -123,8 +133,8 @@ public class Dispatcher extends Stopable {
 
 		// TODO: delete the topic from the broker storage
 		// the topic is contained in the delete topic message
-		
-		throw new UnsupportedOperationException(TODO.method());
+
+		storage.deleteTopic(msg.getTopic());
 	}
 
 	public void onSubscribe(SubscribeMsg msg) {
@@ -133,8 +143,8 @@ public class Dispatcher extends Stopable {
 
 		// TODO: subscribe user to the topic
 		// user and topic is contained in the subscribe message
-		
-		throw new UnsupportedOperationException(TODO.method());
+
+		storage.addSubscriber(msg.getUser(), msg.getTopic());
 
 	}
 
@@ -144,8 +154,8 @@ public class Dispatcher extends Stopable {
 
 		// TODO: unsubscribe user to the topic
 		// user and topic is contained in the unsubscribe message
-		
-		throw new UnsupportedOperationException(TODO.method());
+
+		storage.removeSubscriber(msg.getUser(), msg.getTopic());
 	}
 
 	public void onPublish(PublishMsg msg) {
@@ -155,8 +165,17 @@ public class Dispatcher extends Stopable {
 		// TODO: publish the message to clients subscribed to the topic
 		// topic and message is contained in the subscribe message
 		// messages must be sent used the corresponding client session objects
-		
-		throw new UnsupportedOperationException(TODO.method());
 
+		Set<String> subscribers = storage.getSubscribers(msg.getTopic());
+		ClientSession session = null;
+
+		for (String s : subscribers) {
+			session = storage.getSession(s);
+			if (session != null) {
+				session.send(msg);
+			} else {
+				storage.addBufferMessage(s, msg);
+			}
+		}
 	}
 }
